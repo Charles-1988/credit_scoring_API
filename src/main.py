@@ -5,8 +5,8 @@ from src.model_loader import predictor
 
 app = FastAPI(title="Credit Scoring API")
 
-# Base path du projet
-BASE_DIR = Path(__file__).parent
+# Base path du projet (remonte d'un niveau depuis src/)
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Charger le fichier des 5 clients depuis le dossier data
 clients_file = BASE_DIR / "data" / "five_clients.csv"
@@ -31,5 +31,6 @@ def predict(data: dict):
         return {"proba": float(proba), "classe": int(classe)}
     except Exception as e:
         return {"error": str(e)}
+
 
 
