@@ -29,7 +29,7 @@ jobs:
         pip install -r requirements.txt
         pip install pytest
 
-    - name: Run tests
-      run: |
-        # Définir le PYTHONPATH pour que pytest trouve src
-        PYTHONPATH=src pytest tests/test_model.py -v --disable-warnings --maxfail=1
+   - name: Run tests
+  run: |
+    # Définir PYTHONPATH pour que pytest trouve src
+    PYTHONPATH=./src pytest tests/test_model.py -v
