@@ -4,9 +4,17 @@ from src.model_loader import predictor
 
 app = FastAPI(title="Credit Scoring API")
 
+# Charger les 5 clients dès le démarrage
+clients_df = pd.read_csv("5_clients.csv", index_col=0)
+
 @app.get("/")
 def read_root():
     return {"message": "API Credit Scoring active"}
+
+@app.get("/clients")
+def get_clients():
+    # Retourne les 5 clients sous forme de dictionnaire
+    return clients_df.to_dict(orient="index")
 
 @app.post("/predict")
 def predict(data: dict):
