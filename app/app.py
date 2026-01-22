@@ -9,9 +9,7 @@ st.title("Credit Scoring")
 
 # Charger les clients
 try:
-    response = requests.get(API_CLIENTS_URL)
-    response.raise_for_status()
-    clients_df = pd.DataFrame.from_dict(response.json(), orient="index")
+    clients_df = pd.DataFrame.from_dict(requests.get(API_CLIENTS_URL).json(), orient="index")
 except Exception as e:
     st.error(f"Erreur lors de la récupération des clients : {e}")
     st.stop()
@@ -20,39 +18,26 @@ except Exception as e:
 client_id = st.selectbox("Choisir un client :", clients_df.index.tolist())
 client_data = clients_df.loc[client_id]
 
-# Création des colonnes pour bouton et résultat
-col1, col2 = st.columns([1, 1])
+# Colonnes pour bouton et résultat
+col1, col2 = st.columns(2)
 
 # Préparer le formulaire
-inputs = {}
-for col in clients_df.columns:
-    val = client_data[col]
-    try:
-        val = float(val)
-    except ValueError:
-        val = 0.0
-    inputs[col] = st.number_input(col, value=val)
+inputs = {col: st.number_input(col, value=float(client_data[col])) for col in clients_df.columns}
 
-# Bouton de prédiction en haut à gauche
+# Bouton de prédiction
 with col1:
-    predict_button = st.button("Prédire")
-
-# Résultat en haut à droite
-result_container = col2.empty()
-
-if predict_button:
-    try:
-        res = requests.post(API_URL, json=inputs).json()
-        if "error" in res:
-            result_container.error(f"Erreur API : {res['error']}")
-        else:
-            classe = res["classe"]
-            if classe == 1:
-                result_container.error("Crédit refusé ")
+    if st.button("Prédire"):
+        try:
+            res = requests.post(API_URL, json=inputs).json()
+            if "error" in res:
+                col2.error(f"Erreur API : {res['error']}")
+            elif res["classe"] == 1:
+                col2.error("Crédit refusé")
             else:
-                result_container.success("Crédit accordé ")
-    except Exception as e:
-        result_container.error(f"Erreur lors de l'appel API : {e}")
+                col2.success("Crédit accordé")
+        except Exception as e:
+            col2.error(f"Erreur lors de l'appel API : {e}")
+
 
 
 
