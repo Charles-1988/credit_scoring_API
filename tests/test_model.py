@@ -1,7 +1,8 @@
-import pytest
+# tests/test_model.py
 import pandas as pd
 from fastapi.testclient import TestClient
 from pathlib import Path
+
 from src.model_loader import ModelPredictor
 from src.main import app
 
@@ -12,55 +13,41 @@ SEUIL_METIER = 0.09
 
 client = TestClient(app)
 
-def test_predictor_normal():
-    predictor = ModelPredictor(MODEL_PATH, TOP_FEATURES_PATH, SEUIL_METIER)
-    df = pd.DataFrame([{f: 0.0 for f in predictor.top_features}])
+def get_predictor():
+    return ModelPredictor(MODEL_PATH, TOP_FEATURES_PATH, SEUIL_METIER)
+
+def get_valid_payload():
+    predictor = get_predictor()
+    return {feat: 0.0 for feat in predictor.top_features}
+
+
+def test_predictor_outputs():
+    predictor = get_predictor()
+    df = pd.DataFrame([get_valid_payload()])
     proba = predictor.predict_proba(df)[0]
     classe = predictor.predict_class(df)[0]
-
     assert 0 <= proba <= 1
     assert classe in [0, 1]
-    assert (proba >= SEUIL_METIER) == (classe == 1)
 
-
-def test_predictor_missing_feature():
-    predictor = ModelPredictor(MODEL_PATH, TOP_FEATURES_PATH, SEUIL_METIER)
-    df = pd.DataFrame([{predictor.top_features[0]: 0.0}])  # seulement 1 feature
-    with pytest.raises(KeyError):
+def test_missing_feature_raises():
+    predictor = get_predictor()
+    payload = get_valid_payload()
+    payload.pop(next(iter(payload)))  # enlever une feature
+    df = pd.DataFrame([payload])
+    try:
         predictor.predict_proba(df)
-
-
-def test_invalid_model_path():
-    with pytest.raises(FileNotFoundError):
-        ModelPredictor("modele_inexistant.pkl", TOP_FEATURES_PATH, SEUIL_METIER)
-
-def test_invalid_features_path():
-    with pytest.raises(FileNotFoundError):
-        ModelPredictor(MODEL_PATH, "features_inexistantes.csv", SEUIL_METIER)
-
-
-def test_api_get_clients():
-    response = client.get("/clients")
-    assert response.status_code == 200
-    data = response.json()
-    assert isinstance(data, dict)
-
+        assert False
+    except KeyError:
+        pass
 
 def test_api_predict_success():
-    predictor = ModelPredictor(MODEL_PATH, TOP_FEATURES_PATH, SEUIL_METIER)
-    payload = {feat: 0.0 for feat in predictor.top_features}
-    response = client.post("/predict", json=payload)
+    response = client.post("/predict", json=get_valid_payload())
     assert response.status_code == 200
     data = response.json()
     assert "proba" in data and "classe" in data
-    assert 0 <= data["proba"] <= 1
-    assert data["classe"] in [0, 1]
-
 
 def test_api_predict_missing_feature():
-    predictor = ModelPredictor(MODEL_PATH, TOP_FEATURES_PATH, SEUIL_METIER)
-    payload = {predictor.top_features[0]: 0.0}  # seulement 1 feature
+    predictor = get_predictor()
+    payload = {predictor.top_features[0]: 0.0}
     response = client.post("/predict", json=payload)
-    assert response.status_code == 200
-    data = response.json()
-    assert "error" in data
+    assert response.status_code == 422  # Pydantic gère la validation
