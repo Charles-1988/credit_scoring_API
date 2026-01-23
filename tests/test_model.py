@@ -1,51 +1,67 @@
+# tests/test_simple.py
 import pytest
 import pandas as pd
-import numpy as np
+from fastapi.testclient import TestClient
 from pathlib import Path
 from src.model_loader import ModelPredictor
+from src.main import app
 
-# Chemins vers le modèle et les features
 BASE_DIR = Path(__file__).resolve().parent.parent
 MODEL_PATH = BASE_DIR / "models/best_model_lightgbm.pkl"
 TOP_FEATURES_PATH = BASE_DIR / "data/top_features.csv"
 SEUIL_METIER = 0.09
 
+
 @pytest.fixture
 def predictor():
-    """Instanciation simple du modèle"""
     return ModelPredictor(MODEL_PATH, TOP_FEATURES_PATH, SEUIL_METIER)
 
 @pytest.fixture
 def valid_payload(predictor):
-    """Payload avec toutes les features, valeurs par défaut 0.0"""
     return {feat: 0.0 for feat in predictor.top_features}
 
-def test_predict_proba_classe(predictor, valid_payload):
-    """Vérifie que predict_proba renvoie des valeurs entre 0 et 1
-       et que predict_class renvoie 0 ou 1"""
+@pytest.fixture
+def client():
+    return TestClient(app)
+
+
+def test_model_predict(predictor, valid_payload):
     df = pd.DataFrame([valid_payload])
     proba = predictor.predict_proba(df)[0]
     classe = predictor.predict_class(df)[0]
     assert 0 <= proba <= 1
     assert classe in [0, 1]
 
-def test_feature_manquante(predictor):
-    """Vérifie que l’absence d’une feature déclenche une KeyError"""
-    df = pd.DataFrame([{predictor.top_features[0]: 0.0}])  # seule 1 feature
+def test_model_missing_feature(predictor):
+    df = pd.DataFrame([{predictor.top_features[0]: 0.0}])
     with pytest.raises(KeyError):
         predictor.predict_proba(df)
 
-def test_seuil_metier(predictor, valid_payload):
-    """Cas limite : si la proba = seuil, la classe doit être 1"""
-    df = pd.DataFrame([valid_payload])
 
-    class DummyModel:
-        """Dummy model qui renvoie exactement le seuil métier"""
-        def predict_proba(self, X):
-            return np.array([[1 - SEUIL_METIER, SEUIL_METIER]])
+def test_api_root(client):
+    response = client.get("/")
+    assert response.status_code == 200
+    assert "API Credit Scoring active" in response.json()["message"]
 
-    predictor.model = DummyModel()
-    assert predictor.predict_class(df)[0] == 1
+def test_api_predict_valid(client, valid_payload):
+    response = client.post("/predict", json=valid_payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert 0 <= data["proba"] <= 1
+    assert data["classe"] in [0, 1]
+
+def test_api_predict_missing_feature(client, valid_payload):
+    payload = valid_payload.copy()
+    payload.pop(list(payload.keys())[0])
+    response = client.post("/predict", json=payload)
+    assert response.status_code == 422  
+
+def test_api_predict_wrong_type(client, valid_payload):
+    payload = valid_payload.copy()
+    payload[list(payload.keys())[0]] = "wrong_type"
+    response = client.post("/predict", json=payload)
+    assert response.status_code == 422  
+
 
 
 
