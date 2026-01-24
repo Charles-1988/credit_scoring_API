@@ -5,8 +5,12 @@ from pathlib import Path
 class ModelPredictor:
     def __init__(self, model_path=None, top_features_path=None, threshold=0.09):
         base_path = Path(__file__).parent.parent
-        self.model = joblib.load(model_path or base_path / "models/best_model_lightgbm.pkl")
-        self.top_features = pd.read_csv(top_features_path or base_path / "data/top_features.csv")["feature"].tolist()
+        model_path = model_path or base_path / "models/best_model_lightgbm.pkl"
+        features_path = top_features_path or base_path / "data/top_features.csv"
+
+        # Charger le modèle et les features
+        self.model = joblib.load(model_path)
+        self.top_features = pd.read_csv(features_path)["feature"].tolist()
         self.threshold = threshold
 
     def predict_proba(self, X: pd.DataFrame):
@@ -17,7 +21,3 @@ class ModelPredictor:
 
     def predict_class(self, X: pd.DataFrame):
         return (self.predict_proba(X) >= self.threshold).astype(int)
-
-
-
-
